@@ -52,7 +52,7 @@ type requestOptionsCompatibility struct {
 	OperationName string `json:"operationName" url:"operationName" schema:"operationName"`
 }
 
-func getMultipartFromForm(form *multipart.Form) *RequestOptions {
+func getFromMultipartForm(form *multipart.Form) *RequestOptions {
 	values := url.Values(form.Value)
 	query := values.Get("query")
 	if query != "" {
@@ -100,7 +100,6 @@ func NewRequestOptions(r *http.Request) *RequestOptions {
 		return &RequestOptions{}
 	}
 
-	// TODO: improve Content-Type handling
 	contentTypeStr := r.Header.Get("Content-Type")
 	contentTypeTokens := strings.Split(contentTypeStr, ";")
 	contentType := contentTypeTokens[0]
@@ -126,7 +125,7 @@ func NewRequestOptions(r *http.Request) *RequestOptions {
 		if err := r.ParseMultipartForm(MaxUploadMemorySize); err != nil {
 			return &RequestOptions{}
 		}
-		if reqOpt := getMultipartFromForm(r.MultipartForm); reqOpt != nil {
+		if reqOpt := getFromMultipartForm(r.MultipartForm); reqOpt != nil {
 			return reqOpt
 		}
 		return &RequestOptions{}
@@ -138,14 +137,7 @@ func NewRequestOptions(r *http.Request) *RequestOptions {
 		if err != nil {
 			return &opts
 		}
-		err = json.Unmarshal(body, &opts)
-		if err != nil {
-			// Probably `variables` was sent as a string instead of an object.
-			// So, we try to be polite and try to parse that as a JSON string
-			var optsCompatible requestOptionsCompatibility
-			_ = json.Unmarshal(body, &optsCompatible)
-			_ = json.Unmarshal([]byte(optsCompatible.Variables), &opts.Variables)
-		}
+		_ = json.Unmarshal(body, &opts)
 		return &opts
 	}
 }
