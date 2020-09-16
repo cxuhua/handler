@@ -3,6 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"io/ioutil"
+	"mime/multipart"
 	"net/http"
 	"net/url"
 	"strings"
@@ -14,10 +15,15 @@ import (
 	"github.com/graphql-go/graphql/gqlerrors"
 )
 
+var (
+	MaxUploadMemorySize = int64(1024 * 1024 * 10)
+)
+
 const (
-	ContentTypeJSON           = "application/json"
-	ContentTypeGraphQL        = "application/graphql"
-	ContentTypeFormURLEncoded = "application/x-www-form-urlencoded"
+	ContentTypeJSON              = "application/json"
+	ContentTypeGraphQL           = "application/graphql"
+	ContentTypeFormURLEncoded    = "application/x-www-form-urlencoded"
+	ContentTypeMultipartFormData = "multipart/form-data"
 )
 
 type ResultCallbackFn func(ctx context.Context, params *graphql.Params, result *graphql.Result, responseBody []byte)
@@ -33,9 +39,10 @@ type Handler struct {
 }
 
 type RequestOptions struct {
-	Query         string                 `json:"query" url:"query" schema:"query"`
-	Variables     map[string]interface{} `json:"variables" url:"variables" schema:"variables"`
-	OperationName string                 `json:"operationName" url:"operationName" schema:"operationName"`
+	Query         string                             `json:"query" url:"query" schema:"query"`
+	Variables     map[string]interface{}             `json:"variables" url:"variables" schema:"variables"`
+	OperationName string                             `json:"operationName" url:"operationName" schema:"operationName"`
+	File          map[string][]*multipart.FileHeader `json:"-"`
 }
 
 // a workaround for getting`variables` as a JSON string
@@ -45,21 +52,37 @@ type requestOptionsCompatibility struct {
 	OperationName string `json:"operationName" url:"operationName" schema:"operationName"`
 }
 
+func getMultipartFromForm(form *multipart.Form) *RequestOptions {
+	values := url.Values(form.Value)
+	query := values.Get("query")
+	if query != "" {
+		// get variables map
+		variables := make(map[string]interface{}, len(values))
+		variablesStr := values.Get("variables")
+		_ = json.Unmarshal([]byte(variablesStr), &variables)
+		return &RequestOptions{
+			Query:         query,
+			Variables:     variables,
+			OperationName: values.Get("operationName"),
+			File:          form.File,
+		}
+	}
+	return nil
+}
+
 func getFromForm(values url.Values) *RequestOptions {
 	query := values.Get("query")
 	if query != "" {
 		// get variables map
 		variables := make(map[string]interface{}, len(values))
 		variablesStr := values.Get("variables")
-		json.Unmarshal([]byte(variablesStr), &variables)
-
+		_ = json.Unmarshal([]byte(variablesStr), &variables)
 		return &RequestOptions{
 			Query:         query,
 			Variables:     variables,
 			OperationName: values.Get("operationName"),
 		}
 	}
-
 	return nil
 }
 
@@ -95,13 +118,18 @@ func NewRequestOptions(r *http.Request) *RequestOptions {
 		if err := r.ParseForm(); err != nil {
 			return &RequestOptions{}
 		}
-
 		if reqOpt := getFromForm(r.PostForm); reqOpt != nil {
 			return reqOpt
 		}
-
 		return &RequestOptions{}
-
+	case ContentTypeMultipartFormData:
+		if err := r.ParseMultipartForm(MaxUploadMemorySize); err != nil {
+			return &RequestOptions{}
+		}
+		if reqOpt := getMultipartFromForm(r.MultipartForm); reqOpt != nil {
+			return reqOpt
+		}
+		return &RequestOptions{}
 	case ContentTypeJSON:
 		fallthrough
 	default:
@@ -115,8 +143,8 @@ func NewRequestOptions(r *http.Request) *RequestOptions {
 			// Probably `variables` was sent as a string instead of an object.
 			// So, we try to be polite and try to parse that as a JSON string
 			var optsCompatible requestOptionsCompatibility
-			json.Unmarshal(body, &optsCompatible)
-			json.Unmarshal([]byte(optsCompatible.Variables), &opts.Variables)
+			_ = json.Unmarshal(body, &optsCompatible)
+			_ = json.Unmarshal([]byte(optsCompatible.Variables), &opts.Variables)
 		}
 		return &opts
 	}
@@ -137,7 +165,7 @@ func (h *Handler) ContextHandler(ctx context.Context, w http.ResponseWriter, r *
 		Context:        ctx,
 	}
 	if h.rootObjectFn != nil {
-		params.RootObject = h.rootObjectFn(ctx, r)
+		params.RootObject = h.rootObjectFn(ctx, r, opts)
 	}
 	result := graphql.Do(params)
 
@@ -175,12 +203,12 @@ func (h *Handler) ContextHandler(ctx context.Context, w http.ResponseWriter, r *
 		w.WriteHeader(http.StatusOK)
 		buff, _ = json.MarshalIndent(result, "", "\t")
 
-		w.Write(buff)
+		_, _ = w.Write(buff)
 	} else {
 		w.WriteHeader(http.StatusOK)
 		buff, _ = json.Marshal(result)
 
-		w.Write(buff)
+		_, _ = w.Write(buff)
 	}
 
 	if h.resultCallbackFn != nil {
@@ -194,7 +222,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 // RootObjectFn allows a user to generate a RootObject per request
-type RootObjectFn func(ctx context.Context, r *http.Request) map[string]interface{}
+type RootObjectFn func(ctx context.Context, r *http.Request, opts *RequestOptions) map[string]interface{}
 
 type Config struct {
 	Schema           *graphql.Schema
