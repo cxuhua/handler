@@ -10,13 +10,14 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/cxuhua/handler"
+
 	"context"
 
 	"github.com/graphql-go/graphql"
 	"github.com/graphql-go/graphql/gqlerrors"
 	"github.com/graphql-go/graphql/language/location"
 	"github.com/graphql-go/graphql/testutil"
-	"github.com/graphql-go/handler"
 )
 
 func decodeResponse(t *testing.T, recorder *httptest.ResponseRecorder) *graphql.Result {
@@ -200,7 +201,7 @@ func TestHandler_BasicQuery_WithRootObjFn(t *testing.T) {
 	h := handler.New(&handler.Config{
 		Schema: &myNameSchema,
 		Pretty: true,
-		RootObjectFn: func(ctx context.Context, r *http.Request) map[string]interface{} {
+		RootObjectFn: func(ctx context.Context, r *http.Request, opts *handler.RequestOptions) map[string]interface{} {
 			return map[string]interface{}{"rootValue": "foo"}
 		},
 	})
