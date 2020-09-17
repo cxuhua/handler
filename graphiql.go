@@ -17,14 +17,10 @@ func renderGraphiQL(w http.ResponseWriter, params graphql.Params) {
 		return
 	}
 	// Create variables string
-	vars, err := json.MarshalIndent(params.VariableValues, "", "  ")
+	_, err = json.MarshalIndent(params.VariableValues, "", "  ")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
-	}
-	varsString := string(vars)
-	if varsString == "null" {
-		varsString = ""
 	}
 	// Create result string
 	if params.RequestString != "" {
@@ -34,7 +30,10 @@ func renderGraphiQL(w http.ResponseWriter, params graphql.Params) {
 			return
 		}
 	}
-	err = t.ExecuteTemplate(w, "index", nil)
+	args := map[string]string{
+		"Title": Title,
+	}
+	err = t.ExecuteTemplate(w, "index", args)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
@@ -47,11 +46,11 @@ const graphiqlTemplate = `
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset=utf-8/>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
   <meta name="viewport" content="user-scalable=no, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, minimal-ui">
-  <title>GraphQL Playground</title>
+  <title>{{.Title}}</title>
   <link rel="stylesheet" href="//cdn.jsdelivr.net/npm/graphql-playground-react/build/static/css/index.css" />
-  <link rel="shortcut icon" href="//cdn.jsdelivr.net/npm/graphql-playground-react/build/favicon.png" />
+  <link rel="shortcut icon" href="/favicon.ico" />
   <script src="//cdn.jsdelivr.net/npm/graphql-playground-react/build/static/js/middleware.js"></script>
 </head>
 <body>
@@ -84,13 +83,11 @@ const graphiqlTemplate = `
     </style>
     <img src='//cdn.jsdelivr.net/npm/graphql-playground-react/build/logo.png' alt=''>
     <div class="loading"> Loading
-      <span class="title">GraphQL Playground</span>
+      <span class="title">{{.Title}}</span>
     </div>
   </div>
   <script>window.addEventListener('load', function (event) {
-      GraphQLPlayground.init(document.getElementById('root'), {
-        // options as 'endpoint' belong here
-      })
+		GraphQLPlayground.init(document.getElementById('root'), {setTitle:false})
     })</script>
 </body>
 </html>

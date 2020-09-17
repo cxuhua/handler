@@ -17,6 +17,7 @@ import (
 
 var (
 	MaxUploadMemorySize = int64(1024 * 1024 * 10)
+	Title               = "GraphQL Playground"
 )
 
 const (
@@ -194,6 +195,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 type RootObjectFn func(ctx context.Context, r *http.Request, opts *RequestOptions) map[string]interface{}
 
 type Config struct {
+	Title            string
 	Schema           *graphql.Schema
 	Pretty           bool
 	GraphiQL         bool
@@ -218,7 +220,9 @@ func New(p *Config) *Handler {
 	if p.Schema == nil {
 		panic("undefined GraphQL schema")
 	}
-
+	if p.Title != "" {
+		Title = p.Title
+	}
 	return &Handler{
 		Schema:           p.Schema,
 		pretty:           p.Pretty,
