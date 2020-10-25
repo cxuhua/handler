@@ -30,10 +30,10 @@ type Handler struct {
 	Schema       *graphql.Schema
 	pretty       bool
 	graphiql     bool
-	rootFn       RootFn
-	exitFn       ExitFn
 	subscription string
 	title        string
+	entryFn      EntryFn
+	exitFn       ExitFn
 }
 
 type RequestOptions struct {
@@ -136,8 +136,9 @@ func NewRequestOptions(r *http.Request) *RequestOptions {
 // ContextHandler provides an entrypoint into executing graphQL queries with a
 // user-provided context.
 func (h *Handler) ContextHandler(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+	var buff []byte
 	if h.exitFn != nil {
-		defer h.exitFn(ctx, w, r)
+		defer h.exitFn(ctx, w, r, buff)
 	}
 	// get query
 	opts := NewRequestOptions(r)
@@ -149,8 +150,8 @@ func (h *Handler) ContextHandler(ctx context.Context, w http.ResponseWriter, r *
 		OperationName:  opts.OperationName,
 		Context:        ctx,
 	}
-	if h.rootFn != nil {
-		params.RootObject = h.rootFn(ctx, r, opts)
+	if h.entryFn != nil {
+		params.RootObject = h.entryFn(ctx, r, opts)
 	}
 	result := graphql.Do(params)
 	if h.graphiql {
@@ -163,7 +164,6 @@ func (h *Handler) ContextHandler(ctx context.Context, w http.ResponseWriter, r *
 	}
 	// use proper JSON Header
 	w.Header().Add("Content-Type", "application/json; charset=utf-8")
-	var buff []byte
 	if h.pretty {
 		w.WriteHeader(http.StatusOK)
 		buff, _ = json.MarshalIndent(result, "", "\t")
@@ -181,15 +181,15 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 // RootObjectFn allows a user to generate a RootObject per request
-type RootFn func(ctx context.Context, r *http.Request, opts *RequestOptions) map[string]interface{}
-type ExitFn func(ctx context.Context, w http.ResponseWriter, r *http.Request)
+type EntryFn func(ctx context.Context, r *http.Request, opts *RequestOptions) map[string]interface{}
+type ExitFn func(ctx context.Context, w http.ResponseWriter, r *http.Request, buf []byte)
 
 type Config struct {
 	Title        string
 	Schema       *graphql.Schema
 	Pretty       bool
 	GraphiQL     bool
-	RootFn       RootFn
+	EntryFn      EntryFn
 	ExitFn       ExitFn
 	Subscription string
 }
@@ -215,7 +215,7 @@ func New(p *Config) *Handler {
 		Schema:       p.Schema,
 		pretty:       p.Pretty,
 		graphiql:     p.GraphiQL,
-		rootFn:       p.RootFn,
+		entryFn:      p.EntryFn,
 		subscription: p.Subscription,
 		title:        p.Title,
 	}
