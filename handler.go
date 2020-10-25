@@ -15,7 +15,6 @@ import (
 
 var (
 	MaxUploadMemorySize = int64(1024 * 1024 * 10)
-	Title               = "GraphQL Playground"
 )
 
 const (
@@ -28,11 +27,13 @@ const (
 type ResultCallbackFn func(ctx context.Context, params *graphql.Params, result *graphql.Result, responseBody []byte)
 
 type Handler struct {
-	Schema   *graphql.Schema
-	pretty   bool
-	graphiql bool
-	rootFn   RootFn
-	exitFn   ExitFn
+	Schema       *graphql.Schema
+	pretty       bool
+	graphiql     bool
+	rootFn       RootFn
+	exitFn       ExitFn
+	subscription string
+	title        string
 }
 
 type RequestOptions struct {
@@ -156,7 +157,7 @@ func (h *Handler) ContextHandler(ctx context.Context, w http.ResponseWriter, r *
 		acceptHeader := r.Header.Get("Accept")
 		_, raw := r.URL.Query()["raw"]
 		if !raw && !strings.Contains(acceptHeader, "application/json") && strings.Contains(acceptHeader, "text/html") {
-			renderGraphiQL(w, params)
+			renderGraphiQL(w, h, params)
 			return
 		}
 	}
@@ -184,12 +185,13 @@ type RootFn func(ctx context.Context, r *http.Request, opts *RequestOptions) map
 type ExitFn func(ctx context.Context, w http.ResponseWriter, r *http.Request)
 
 type Config struct {
-	Title    string
-	Schema   *graphql.Schema
-	Pretty   bool
-	GraphiQL bool
-	RootFn   RootFn
-	ExitFn   ExitFn
+	Title        string
+	Schema       *graphql.Schema
+	Pretty       bool
+	GraphiQL     bool
+	RootFn       RootFn
+	ExitFn       ExitFn
+	Subscription string
 }
 
 func NewConfig() *Config {
@@ -208,14 +210,13 @@ func New(p *Config) *Handler {
 	if p.Schema == nil {
 		panic("undefined GraphQL schema")
 	}
-	if p.Title != "" {
-		Title = p.Title
-	}
 	return &Handler{
-		exitFn:   p.ExitFn,
-		Schema:   p.Schema,
-		pretty:   p.Pretty,
-		graphiql: p.GraphiQL,
-		rootFn:   p.RootFn,
+		exitFn:       p.ExitFn,
+		Schema:       p.Schema,
+		pretty:       p.Pretty,
+		graphiql:     p.GraphiQL,
+		rootFn:       p.RootFn,
+		subscription: p.Subscription,
+		title:        p.Title,
 	}
 }
