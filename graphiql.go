@@ -9,7 +9,7 @@ import (
 )
 
 // renderGraphiQL renders the GraphiQL GUI
-func renderGraphiQL(w http.ResponseWriter, params graphql.Params) {
+func renderGraphiQL(w http.ResponseWriter, h *Handler, params graphql.Params) {
 	t := template.New("GraphiQL")
 	t, err := t.Parse(graphiqlTemplate)
 	if err != nil {
@@ -31,7 +31,8 @@ func renderGraphiQL(w http.ResponseWriter, params graphql.Params) {
 		}
 	}
 	args := map[string]string{
-		"Title": Title,
+		"Title":        h.title,
+		"Subscription": h.subscription,
 	}
 	err = t.ExecuteTemplate(w, "index", args)
 	if err != nil {
@@ -87,7 +88,7 @@ const graphiqlTemplate = `
     </div>
   </div>
   <script>window.addEventListener('load', function (event) {
-		GraphQLPlayground.init(document.getElementById('root'), {setTitle:false})
+		GraphQLPlayground.init(document.getElementById('root'), {setTitle:false,subscriptionEndpoint:'{{.Subscription}}'})
     })</script>
 </body>
 </html>

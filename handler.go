@@ -15,7 +15,6 @@ import (
 
 var (
 	MaxUploadMemorySize = int64(1024 * 1024 * 10)
-	Title               = "GraphQL Playground"
 )
 
 const (
@@ -28,12 +27,14 @@ const (
 type ResultCallbackFn func(ctx context.Context, params *graphql.Params, result *graphql.Result, responseBody []byte)
 
 type Handler struct {
-	Schema   *graphql.Schema
-	pretty   bool
-	graphiql bool
-	entryFn  EntryFn
-	exitFn   ExitFn
-	finishFn FinishFn
+	Schema       *graphql.Schema
+	pretty       bool
+	graphiql     bool
+	subscription string
+	title        string
+	entryFn      EntryFn
+	exitFn       ExitFn
+	finishFn     FinishFn
 }
 
 type RequestOptions struct {
@@ -158,7 +159,7 @@ func (h *Handler) ContextHandler(ctx context.Context, w http.ResponseWriter, r *
 		acceptHeader := r.Header.Get("Accept")
 		_, raw := r.URL.Query()["raw"]
 		if !raw && !strings.Contains(acceptHeader, "application/json") && strings.Contains(acceptHeader, "text/html") {
-			renderGraphiQL(w, params)
+			renderGraphiQL(w, h, params)
 			return
 		}
 	}
@@ -174,7 +175,7 @@ func (h *Handler) ContextHandler(ctx context.Context, w http.ResponseWriter, r *
 		_, _ = w.Write(buff)
 	}
 	if h.finishFn != nil {
-		h.finishFn(ctx,w,r,buff)
+		h.finishFn(ctx, w, r, buff)
 	}
 }
 
@@ -186,16 +187,17 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // RootObjectFn allows a user to generate a RootObject per request
 type EntryFn func(ctx context.Context, r *http.Request, opts *RequestOptions) map[string]interface{}
 type ExitFn func(ctx context.Context, w http.ResponseWriter, r *http.Request)
-type FinishFn func(ctx context.Context, w http.ResponseWriter, r *http.Request,buf []byte)
+type FinishFn func(ctx context.Context, w http.ResponseWriter, r *http.Request, buf []byte)
 
 type Config struct {
-	Title    string
-	Schema   *graphql.Schema
-	Pretty   bool
-	GraphiQL bool
-	EntryFn  EntryFn
-	ExitFn   ExitFn
-	FinishFn FinishFn
+	Title        string
+	Schema       *graphql.Schema
+	Pretty       bool
+	GraphiQL     bool
+	EntryFn      EntryFn
+	ExitFn       ExitFn
+	Subscription string
+	FinishFn     FinishFn
 }
 
 func NewConfig() *Config {
@@ -214,15 +216,14 @@ func New(p *Config) *Handler {
 	if p.Schema == nil {
 		panic("undefined GraphQL schema")
 	}
-	if p.Title != "" {
-		Title = p.Title
-	}
 	return &Handler{
-		exitFn:   p.ExitFn,
-		Schema:   p.Schema,
-		pretty:   p.Pretty,
-		graphiql: p.GraphiQL,
-		entryFn:  p.EntryFn,
-		finishFn: p.FinishFn,
+		exitFn:       p.ExitFn,
+		Schema:       p.Schema,
+		pretty:       p.Pretty,
+		graphiql:     p.GraphiQL,
+		entryFn:      p.EntryFn,
+		subscription: p.Subscription,
+		title:        p.Title,
+		finishFn:     p.FinishFn,
 	}
 }
