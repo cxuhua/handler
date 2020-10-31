@@ -33,6 +33,7 @@ type Handler struct {
 	graphiql bool
 	entryFn  EntryFn
 	exitFn   ExitFn
+	finishFn FinishFn
 }
 
 type RequestOptions struct {
@@ -137,7 +138,7 @@ func NewRequestOptions(r *http.Request) *RequestOptions {
 func (h *Handler) ContextHandler(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 	var buff []byte
 	if h.exitFn != nil {
-		defer h.exitFn(ctx, w, r, buff)
+		defer h.exitFn(ctx, w, r)
 	}
 	// get query
 	opts := NewRequestOptions(r)
@@ -165,12 +166,15 @@ func (h *Handler) ContextHandler(ctx context.Context, w http.ResponseWriter, r *
 	w.Header().Add("Content-Type", "application/json; charset=utf-8")
 	if h.pretty {
 		w.WriteHeader(http.StatusOK)
-		buff, _ = json.MarshalIndent(result, "", "\t")
+		buff, _ = json.MarshalIndent(result, "", " ")
 		_, _ = w.Write(buff)
 	} else {
 		w.WriteHeader(http.StatusOK)
 		buff, _ = json.Marshal(result)
 		_, _ = w.Write(buff)
+	}
+	if h.finishFn != nil {
+		h.finishFn(ctx,w,r,buff)
 	}
 }
 
@@ -181,7 +185,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // RootObjectFn allows a user to generate a RootObject per request
 type EntryFn func(ctx context.Context, r *http.Request, opts *RequestOptions) map[string]interface{}
-type ExitFn func(ctx context.Context, w http.ResponseWriter, r *http.Request, buf []byte)
+type ExitFn func(ctx context.Context, w http.ResponseWriter, r *http.Request)
+type FinishFn func(ctx context.Context, w http.ResponseWriter, r *http.Request,buf []byte)
 
 type Config struct {
 	Title    string
@@ -190,6 +195,7 @@ type Config struct {
 	GraphiQL bool
 	EntryFn  EntryFn
 	ExitFn   ExitFn
+	FinishFn FinishFn
 }
 
 func NewConfig() *Config {
@@ -217,5 +223,6 @@ func New(p *Config) *Handler {
 		pretty:   p.Pretty,
 		graphiql: p.GraphiQL,
 		entryFn:  p.EntryFn,
+		finishFn: p.FinishFn,
 	}
 }
