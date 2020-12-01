@@ -95,6 +95,12 @@ func getFromMultipartForm(form *multipart.Form) *RequestOptions {
 		if str := opts["variables"]; str != nil {
 			variables = opts["variables"].(map[string]interface{})
 		}
+		for k := range variables {
+			_,has := files[k]
+			if has {
+				variables[k] = k
+			}
+		}
 		return &RequestOptions{
 			Query:         query,
 			Variables:     variables,
