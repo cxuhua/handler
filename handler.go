@@ -8,6 +8,8 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/graphql-go/graphql/gqlerrors"
+
 	"github.com/graphql-go/graphql"
 
 	"context"
@@ -65,17 +67,17 @@ func getFromMultipartForm(form *multipart.Form) *RequestOptions {
 		maps := values.Get("map")
 		mapv := url.Values{}
 		//["0"]  = ["variables.filedname"]
-		files:=map[string][]*multipart.FileHeader{}
-		_ = json.Unmarshal([]byte(maps),&mapv)
-		for k,v := range mapv {
-			fi,has := form.File[k]
+		files := map[string][]*multipart.FileHeader{}
+		_ = json.Unmarshal([]byte(maps), &mapv)
+		for k, v := range mapv {
+			fi, has := form.File[k]
 			if !has {
 				continue
 			}
 			if len(v) == 0 {
 				continue
 			}
-			ps := strings.Split(v[0],".")
+			ps := strings.Split(v[0], ".")
 			if len(ps) != 2 {
 				continue
 			}
@@ -91,12 +93,12 @@ func getFromMultipartForm(form *multipart.Form) *RequestOptions {
 		if str := opts["query"]; str != nil {
 			query = str.(string)
 		}
-		variables:= make(map[string]interface{})
+		variables := make(map[string]interface{})
 		if str := opts["variables"]; str != nil {
 			variables = opts["variables"].(map[string]interface{})
 		}
 		for k := range variables {
-			_,has := files[k]
+			_, has := files[k]
 			if has {
 				variables[k] = k
 			}
@@ -200,10 +202,18 @@ func (h *Handler) ContextHandler(ctx context.Context, w http.ResponseWriter, r *
 		OperationName:  opts.OperationName,
 		Context:        ctx,
 	}
+	var err error
+	var result *graphql.Result
 	if h.entryFn != nil {
-		params.RootObject = h.entryFn(ctx, r, opts)
+		params.RootObject, err = h.entryFn(ctx, r, opts)
 	}
-	result := graphql.Do(params)
+	if err != nil {
+		result = &graphql.Result{
+			Errors: []gqlerrors.FormattedError{gqlerrors.FormatError(err)},
+		}
+	} else {
+		result = graphql.Do(params)
+	}
 	if h.graphiql {
 		acceptHeader := r.Header.Get("Accept")
 		_, raw := r.URL.Query()["raw"]
@@ -234,7 +244,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 // RootObjectFn allows a user to generate a RootObject per request
-type EntryFn func(ctx context.Context, r *http.Request, opts *RequestOptions) map[string]interface{}
+type EntryFn func(ctx context.Context, r *http.Request, opts *RequestOptions) (map[string]interface{}, error)
 type ExitFn func(ctx context.Context, w http.ResponseWriter, r *http.Request)
 type FinishFn func(ctx context.Context, w http.ResponseWriter, r *http.Request, buf []byte)
 
