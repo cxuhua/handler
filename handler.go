@@ -64,18 +64,19 @@ func getFromMultipartForm(form *multipart.Form) *RequestOptions {
 		//map files
 		maps := values.Get("map")
 		mapv := url.Values{}
-		//["0"]  = ["variables.filedname"]
-		files:=map[string][]*multipart.FileHeader{}
-		_ = json.Unmarshal([]byte(maps),&mapv)
-		for k,v := range mapv {
-			fi,has := form.File[k]
+		//["0"]  = ["variables.file"]
+		//["0"]  = ["0.variables.file"]
+		files := map[string][]*multipart.FileHeader{}
+		_ = json.Unmarshal([]byte(maps), &mapv)
+		for k, v := range mapv {
+			fi, has := form.File[k]
 			if !has {
 				continue
 			}
 			if len(v) == 0 {
 				continue
 			}
-			ps := strings.Split(v[0],".")
+			ps := strings.Split(v[0], ".")
 			if len(ps) != 2 {
 				continue
 			}
@@ -91,12 +92,12 @@ func getFromMultipartForm(form *multipart.Form) *RequestOptions {
 		if str := opts["query"]; str != nil {
 			query = str.(string)
 		}
-		variables:= make(map[string]interface{})
+		variables := make(map[string]interface{})
 		if str := opts["variables"]; str != nil {
 			variables = opts["variables"].(map[string]interface{})
 		}
 		for k := range variables {
-			_,has := files[k]
+			_, has := files[k]
 			if has {
 				variables[k] = k
 			}
