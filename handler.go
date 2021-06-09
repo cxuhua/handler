@@ -198,7 +198,9 @@ func (h *Handler) ContextHandler(ctx context.Context, w http.ResponseWriter, r *
 	// execute graphql query
 	params := graphql.Params{
 		Schema:         *h.Schema,
-
+		RequestString:  opts.Query,
+		VariableValues: opts.Variables,
+		OperationName:  opts.OperationName,
 		Context:        ctx,
 	}
 	var err error
@@ -206,9 +208,6 @@ func (h *Handler) ContextHandler(ctx context.Context, w http.ResponseWriter, r *
 	if h.entryFn != nil {
 		params.RootObject, err = h.entryFn(ctx, r, opts)
 	}
-	params.RequestString = opts.Query
-	params.VariableValues = opts.Variables
-	params.OperationName = opts.OperationName
 	if err != nil {
 		result = &graphql.Result{
 			Errors: []gqlerrors.FormattedError{gqlerrors.FormatError(err)},
